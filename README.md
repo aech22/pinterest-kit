@@ -26,6 +26,35 @@ python3 gen_social_kit.py     # 投稿文CSV（全サイト）＋ 投稿カレ�
 python3 gen_pins.py --site picknavi --limit 3
 ```
 
+## CI から呼ぶ（picknavi・2026-08-12〜）
+
+picknavi は **rakuten-affiliate-blog の日次ワークフローがこのリポジトリを clone して実行する**。
+記事が毎日 bot に追加・更新されるため、手元での再生成では追随できないため。
+
+```yaml
+env:
+  PINKIT_OUT:               ${{ github.workspace }}/social
+  PINKIT_ARTICLES_PICKNAVI: ${{ github.workspace }}/content/articles
+run: |
+  git clone --depth 1 -q https://github.com/aech22/pinterest-kit.git "$RUNNER_TEMP/pinterest-kit"
+  python "$RUNNER_TEMP/pinterest-kit/gen_pins.py" --site picknavi
+  python "$RUNNER_TEMP/pinterest-kit/gen_social_kit.py" --site picknavi --no-calendar
+```
+
+| 環境変数 | 用途 | 既定 |
+|---|---|---|
+| `PINKIT_CC` | 全リポジトリの親ディレクトリ | `~/Documents/Claude Code` |
+| `PINKIT_ARTICLES_<KEY>` | サイト個別の記事ディレクトリ | `sites.py` の値 |
+| `PINKIT_OUT` | 出力ルート | `pinterest-kit/out` |
+
+- CI では対象リポジトリ1つしかチェックアウトされないが、記事ディレクトリの無いサイトは
+  `[SKIP]` されるので単一サイト実行がそのまま成立する
+- `--no-calendar` を付ける。投稿カレンダーは**全サイト横断**の週次配分表なので、
+  1サイトしか見えない CI で書くと偏った表になる
+- **重複台帳は CI では持ち回さない。** 毎回すべての記事を生成し直すので「別ファイル名で同一バイト」
+  の検出はその1回の実行の中で完結する（台帳は実行中メモリ上に全ピンぶん積まれる）
+- **他5サイト＋Shifty は従来どおり手元で全サイト実行する**（カレンダーもそこで作る）
+
 ## 出力
 
 ```
