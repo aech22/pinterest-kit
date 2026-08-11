@@ -119,7 +119,11 @@ def build_articles(site: dict) -> list[dict]:
         print(f"[SKIP] 記事ディレクトリが無い: {art_dir}")
         return arts
 
-    for p in sorted(art_dir.glob("*.md")):
+    # .mdx も拾う。Astro のコンポーネントを使う記事は .mdx になり、拡張子だけが変わる
+    # ——2026-08-09 に 7-day-japan-itinerary が .md → .mdx へ変わった結果、"*.md" だけを
+    # 見ていたこのループから記事が丸ごと落ち、ピンが黙って2本減っていた（2026-08-12 に検出）。
+    files = sorted(list(art_dir.glob("*.md")) + list(art_dir.glob("*.mdx")))
+    for p in files:
         got = read_article(p)
         if got is None:
             print(f"[SKIP] {p.name}: frontmatter を読めない")

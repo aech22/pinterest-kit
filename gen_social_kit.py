@@ -205,7 +205,9 @@ def collect(site_key: str, site: dict) -> list[dict]:
     # こうすると同一記事の2本目が在庫1周ぶん後ろに回り、§6-4 の「1本ごとに1週間空ける」を
     # カレンダー側で意識せずに満たせる。
     by_variant: dict[int, list[dict]] = {}
-    for p in sorted(art_dir.glob("*.md")):
+    # .mdx も拾う（Astro コンポーネントを使う記事は拡張子だけが変わる）。
+    # The Japan Desk で "*.md" だけを見ていたために記事が丸ごと落ちた事例があるため揃えてある。
+    for p in sorted(list(art_dir.glob("*.md")) + list(art_dir.glob("*.mdx"))):
         fm = read_frontmatter(p)
         if fm is None:
             print(f"[SKIP] {p.name}: frontmatter を読めない")

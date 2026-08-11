@@ -447,7 +447,8 @@ def build_site(key: str, site: dict, limit: int | None, use_ledger: bool) -> dic
 
     only = site.get("only_categories")
     done = 0
-    for p in sorted(art_dir.glob("*.md")):
+    # .mdx も拾う（gen_social_kit.py と同じ理由。片方だけ拾うと CSV と画像がズレる）
+    for p in sorted(list(art_dir.glob("*.md")) + list(art_dir.glob("*.mdx"))):
         if limit and done >= limit:
             break
         fm = read_frontmatter(p)
