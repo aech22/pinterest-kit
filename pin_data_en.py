@@ -388,4 +388,27 @@ PIN_DATA = {
             "sub": "Over the last decade the colour date moved\n13 days between the earliest and latest year.",
         },
     },
+    "japan-onsen-towns-worth-the-detour": {
+        "c": {
+            "kind": "table",
+            "eyebrow": "ONSEN TOWNS, BY ACCESS",
+            "title": "Which onsen towns let you bathe without a room",
+            "columns": ["Town", "Day visitor pays", "Baths"],
+            "rows": [["Nozawa", "Donation", "13"],
+                     ["Beppu", "¥300", "8+"],
+                     ["Kusatsu", "Free", "3+"],
+                     ["Kinosaki", "¥1,500 pass", "6"],
+                     ["Kurokawa", "¥1,500 pass", "3"],
+                     ["Shibu", "¥800", "1"]],
+            "highlight_col": 1,
+            "verdict": "Shibu's other 8 baths are for overnight guests only.",
+            "source": "town tourism associations",
+        },
+        "a": {
+            "num": "13",
+            "unit": "FREE BATHS",
+            "title": "One village asks only for a donation",
+            "sub": "Nozawa Onsen's 13 public baths are run by the\nvillagers themselves. There is no ticket window.",
+        },
+    },
 }

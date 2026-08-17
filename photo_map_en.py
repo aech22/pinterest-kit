@@ -39,6 +39,8 @@ ARTICLE_PHOTOS = {
     #   在庫が無ければ [要写真] で警告が出る。夏の写真が黙って紅葉記事に入るのを防ぐため、
     #   親フォルダ（temple-shrine 等）へのフォールバックは意図的に書いていない。
     "japan-autumn-foliage-guide": ["temple-shrine/autumn", "kyoto/autumn", "hakone-fuji/autumn"],
+    # 温泉記事は季節が主題ではないので通年の宿・温泉街の写真でよい
+    "japan-onsen-towns-worth-the-detour": ["ryokan-onsen", "street-night", "kyushu"],
     # --- 工芸（craft・現在draft）。再開したときにそのまま効くよう先に書いておく
     "arita-vs-mino-vs-hasami":            ["kyushu"],
     "japanese-dinnerware-sets":           ["kyoto"],
