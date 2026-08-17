@@ -5,10 +5,10 @@
 #   §5-2 タイトルは100字上限・フィードで見えるのは前半50〜60字 → キーワードを前半に置く
 #   §5-3 説明文は800字上限・「結論の一文 → 誰向け → 分かること → ハッシュタグ3〜5個」
 #   §6-2 サイト別の週次配分  §6-3 投稿時刻
-#   §6-4 1記事につき最大3本。画像・タイトル・説明文をすべて作り直し、1本ごとに1週間空ける
-#   §11-5 案A  2026-08-07 に商品型サイトを1記事3バリアント（v1 選び方 / v2 価格帯 / v3 用途別）へ
-#         拡張した。同一記事の3本は「全 v1 → 全 v2 → 全 v3」の順に並べるので、カレンダー上で
-#         自動的に在庫1周ぶん（picknavi なら約2.7週）離れる＝§6-4 の「1週間空ける」を満たす
+#   §6-4 1記事につき最大3本まで作ってよい（上限であって義務ではない）
+#   §11-5 案A  2026-08-07 に商品型サイトを1記事3バリアントへ拡張したが、**2026-08-18 に
+#         1記事1本へ戻した**。写真の枚数だけを記事の形に合わせる（まとめ=1枚 / 2種比較=2枚）。
+#         規則は variants.py に集約してある
 #
 # 実行: python3 gen_social_kit.py
 # 出力: out/<site>/social_kit.csv, out/投稿カレンダー.csv
@@ -23,8 +23,8 @@ from pathlib import Path
 import yaml
 
 from sites import SITES, SHIFTY_TOPICS, OUT
-# バリアント数とタイトルの規則は gen_pins.py と共有する（画像と文言をズラさないため）
-from variants import PRODUCTS_NEEDED, title_head, variant_title, variants_for
+# ピンの本数とレイアウトの規則は gen_pins.py と共有する（画像と文言をズラさないため）
+from variants import layouts_for, photos_label, stable_hash
 
 TITLE_MAX = 100      # Pinterest のタイトル上限
 TITLE_VISIBLE = 55   # フィードで見える目安（50〜60字）
@@ -79,12 +79,16 @@ def clean_name(name: str) -> str:
     return " ".join(s.split()).strip(" 　-–—/／、,")
 
 
-def hashtags_for(site: dict, variant: int) -> list[str]:
-    """バリアントごとに別のタグを使う（フレッシュ判定③・§2-3）。未定義なら共通タグ。"""
+def hashtags_for(site: dict, seed: str) -> list[str]:
+    """記事ごとにタグの組を振り分ける（§2-3 の固定率を下げる）。未定義なら共通タグ。
+
+    2026-08-18 まではバリアント v1/v2/v3 で組を切り替えていたが、1記事1本になって
+    バリアント番号が実質固定になったため、そのままでは全ピンが同じタグになる。
+    タグラインと同じく seed（カテゴリ由来）のハッシュで散らす（案D と同じ考え方）。"""
     sets = site.get("hashtag_sets")
     if not sets:
         return site["hashtags"]
-    return sets[(variant - 1) % len(sets)]
+    return sets[stable_hash(seed) % len(sets)]
 
 
 def what_you_learn(fm: dict) -> list[str]:
@@ -103,52 +107,33 @@ def what_you_learn(fm: dict) -> list[str]:
     return points
 
 
-def pin_description(fm: dict, site: dict, variant: int = 1) -> str:
+def pin_description(fm: dict, site: dict, seed: str) -> str:
     """結論の一文 → 誰向け → 分かること → ハッシュタグ。キーワードの羅列はしない（§3-4）。
-    v2・v3 は §11-5 案A の切り口に合わせて本文を丸ごと組み直す（v1 の文をコピーしない）。"""
-    products = fm.get("products") or []
-    head = title_head(str(fm.get("title") or ""))
-    n = PRODUCTS_NEEDED.get(variant, 1)
+
+    2026-08-18 まではバリアントごとに（価格帯で並べ直す / 用途で整理する）本文を組み直して
+    いたが、1記事1本になったので記事の description をそのまま使う一本に戻した。"""
     blocks: list[str] = []
 
-    if variant == 2:
-        blocks.append(f"「{head}」で取り上げた{n}製品を、価格帯で並べ直しました。")
-        rows = []
-        for p in products[:n]:
-            if not p:
-                continue
-            band = p.get("priceBand")
-            name = clip(clean_name(p.get("name") or ""), 30)
-            rows.append(f"・{name}（{band}）" if band else f"・{name}")
-        if rows:
-            blocks.append("価格帯で見ると:\n" + "\n".join(rows))
-    elif variant == 3:
-        blocks.append(f"「{head}」の{n}製品を、どんな人に向くかで整理しました。")
-        rows = [f"・{clip(clean_name(p.get('name') or ''), 22)}: {clip(p.get('target') or '', 55)}"
-                for p in products[:n] if p and p.get("target")]
-        if rows:
-            blocks.append("用途から選ぶなら:\n" + "\n".join(rows))
-    else:
-        desc = (fm.get("description") or "").strip()
-        if desc:
-            blocks.append(clip(desc, 300))
+    desc = (fm.get("description") or "").strip()
+    if desc:
+        blocks.append(clip(desc, 300))
 
-        target = None
-        for s in (fm.get("services") or []):
-            if (s or {}).get("target"):
-                target = str(s["target"]).strip()
-                break
-        if target:
-            blocks.append(f"こんな人向け: {clip(target, 90)}")
+    target = None
+    for s in (fm.get("services") or []):
+        if (s or {}).get("target"):
+            target = str(s["target"]).strip()
+            break
+    if target:
+        blocks.append(f"こんな人向け: {clip(target, 90)}")
 
-        pts = what_you_learn(fm)
-        if pts:
-            blocks.append("この記事でわかること:\n" + "\n".join(f"・{p}" for p in pts))
+    pts = what_you_learn(fm)
+    if pts:
+        blocks.append("この記事でわかること:\n" + "\n".join(f"・{p}" for p in pts))
 
     if site.get("ymyl_note"):
         blocks.append(site["ymyl_note"])
 
-    blocks.append(" ".join(hashtags_for(site, variant)))
+    blocks.append(" ".join(hashtags_for(site, seed)))
     return clip_block("\n\n".join(blocks), DESC_MAX)
 
 
@@ -180,7 +165,7 @@ def collect(site_key: str, site: dict) -> list[dict]:
             desc = clip(t["description"], 300) + "\n\n" + " ".join(site["hashtags"])
             rows.append({
                 "サイト": site["name"],
-                "バリアント": "v1",
+                "レイアウト": "テキスト",
                 "カテゴリ": t["category"],
                 "記事タイトル": t["title"],
                 "URL": site["url"] + t["path"],
@@ -201,10 +186,10 @@ def collect(site_key: str, site: dict) -> list[dict]:
         return rows
 
     only = site.get("only_categories")
-    # バリアントごとにまとめて並べる（v1 を全記事ぶん出し切ってから v2 に移る）。
-    # こうすると同一記事の2本目が在庫1周ぶん後ろに回り、§6-4 の「1本ごとに1週間空ける」を
-    # カレンダー側で意識せずに満たせる。
-    by_variant: dict[int, list[dict]] = {}
+    # 1記事1本なので、記事の並び（ファイル名順）がそのまま投稿順になる。
+    # 2026-08-18 まではバリアントごとに束ねて「全 v1 → 全 v2 → 全 v3」と並べ、同一記事の
+    # 2本目を在庫1周ぶん後ろへ送っていたが、2本目自体が無くなったので束ねる必要がない。
+    rows_out: list[dict] = []
     # .mdx も拾う（Astro コンポーネントを使う記事は拡張子だけが変わる）。
     # The Japan Desk で "*.md" だけを見ていたために記事が丸ごと落ちた事例があるため揃えてある。
     for p in sorted(list(art_dir.glob("*.md")) + list(art_dir.glob("*.mdx"))):
@@ -220,32 +205,33 @@ def collect(site_key: str, site: dict) -> list[dict]:
 
         title = str(fm.get("title") or p.stem)
         products = fm.get("products") or []
-        vs = variants_for(products) if (site["pin_style"] == "product" and products) else [1]
+        is_product = bool(site["pin_style"] == "product" and products)
+        # 画像側（gen_pins.py）と同じ seed を使う。ここがズレるとタグラインとハッシュタグが
+        # 別々の組を指してしまう
+        seed = str(fm.get("categorySlug") or fm.get("category") or p.stem)
 
-        for v in vs:
+        for v in (layouts_for(products) if is_product else [1]):
             img = f"{p.stem}_v{v}.jpg"
             if have is not None and img not in have:
                 print(f"[SKIP] {img}: ピン画像が無い（案Cの台帳に弾かれた可能性）")
                 continue
-            vtitle = variant_title(title, fm, v) if v != 1 else title
-            by_variant.setdefault(v, []).append({
+            rows_out.append({
                 "サイト": site["name"],
-                "バリアント": f"v{v}",
+                "レイアウト": photos_label(v) if is_product else "テキスト",
                 "カテゴリ": fm.get("category") or "",
                 "記事タイトル": title,
                 "URL": f'{site["url"]}/articles/{p.stem}/',
-                "ピンタイトル": pin_title(vtitle),
-                "ピン説明文": pin_description(fm, site, v),
+                "ピンタイトル": pin_title(title),
+                "ピン説明文": pin_description(fm, site, seed),
                 "推奨ボード": f'{site["name"]}／{fm.get("category") or "その他"}',
                 "画像ファイル": img,
-                "タイトル文字数": len(pin_title(vtitle)),
-                "前半55字": clip(vtitle, TITLE_VISIBLE),
+                "タイトル文字数": len(pin_title(title)),
+                "前半55字": clip(title, TITLE_VISIBLE),
                 "_prefix": mmdd(fm),
                 "_slug": f"{p.stem}_v{v}",
             })
 
-    for v in sorted(by_variant):
-        rows.extend(by_variant[v])
+    rows.extend(rows_out)
     return rows
 
 

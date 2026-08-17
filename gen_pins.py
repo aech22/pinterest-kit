@@ -8,6 +8,8 @@
 #
 # 2026-08-07 に §11-5 の案A〜案E を実装した。
 #   案A: 商品型サイトは1記事から v1/v2/v3 の3レイアウトを作る（供給3倍＋テンプレ反復の緩和）
+#        → **2026-08-18 に1記事1本へ戻した。** 写真の枚数だけを記事の形に合わせる
+#          （まとめ記事=1枚 / 2種比較=2枚）。判定は variants.layouts_for が持つ
 #   案B: 楽天サムネを ?_ex=800x800 で取得する（従来は400x400のままカード内で余白だらけだった）
 #   案C: 出力バイトの SHA-256 を out/<site>/pins_ledger.json に記録し、
 #        別ファイル名で同一バイトが出たら [DUP] として書き込まない（重複ピンの機械的な防止）
@@ -15,7 +17,7 @@
 #   案E: 焼き込みバッジ（「81%OFF」等）の少ない商品を主役スロットに選び、必要なら周縁をトリムする
 #
 # 実行: python3 gen_pins.py [--site picknavi] [--limit 5] [--no-ledger]
-# 出力: out/<site>/pins/<slug>_v{1,2,3}.jpg
+# 出力: out/<site>/pins/<slug>_v{1,2}.jpg（1記事1枚。_v2 は商品2点の記事だけ）
 
 from __future__ import annotations
 import argparse
@@ -32,8 +34,8 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 
 from sites import SITES, SHIFTY_TOPICS, OUT
-# バリアント数とタイトルの規則は gen_social_kit.py と共有する（画像と文言をズラさないため）
-from variants import variant_title, variants_for
+# ピンの本数とレイアウトの規則は gen_social_kit.py と共有する（画像と文言をズラさないため）
+from variants import PHOTOS_PER_LAYOUT, layouts_for, pin_title, stable_hash
 
 W, H = 1000, 1500          # §5-1 2:3
 BOTTOM_SAFE = int(H * 0.10)  # 下端10%は空けておく
@@ -65,12 +67,6 @@ def load_font(size: int) -> ImageFont.FreeTypeFont:
 
 # --- 案D: 記事ごとの色・タグラインの振り分け -------------------------------------
 
-def stable_hash(s: str) -> int:
-    """Python の hash() はプロセスごとに salt が変わり再現しないので md5 を使う。
-    再現性は案C（同一バイトの検出）の前提でもある。"""
-    return int(hashlib.md5(s.encode("utf-8")).hexdigest()[:8], 16)
-
-
 def shift_hue(rgb: tuple[int, int, int], deg: float) -> tuple[int, int, int]:
     r, g, b = (c / 255 for c in rgb)
     h, l, s = colorsys.rgb_to_hls(r, g, b)
@@ -95,14 +91,6 @@ def brand_colors(site: dict, seed: str) -> tuple[tuple, tuple]:
 def pick_tagline(site: dict, seed: str) -> str:
     tls = site.get("taglines") or [site["tagline"]]
     return tls[stable_hash(seed) % len(tls)]
-
-
-def variant_tagline(site: dict, variant: int) -> str:
-    """商品型のフッタは切り口（v1 選び方 / v2 価格帯 / v3 用途別）に対応させる。
-    ハッシュで散らすと「用途別のピンに価格帯のタグライン」が出てしまい、
-    §5-1 の「画像と文言の一致」に反する。"""
-    tls = site.get("taglines") or [site["tagline"]]
-    return tls[(variant - 1) % len(tls)]
 
 
 def vgradient(w: int, h: int, c1, c2) -> Image.Image:
@@ -282,18 +270,19 @@ def paste_card(canvas: Image.Image, draw: ImageDraw.ImageDraw, box: list[int],
                       box[1] + ((box[3] - box[1]) - im.height) // 2))
 
 
-# --- 案A: 3レイアウト -----------------------------------------------------------
+# --- レイアウト（写真1枚 / 2枚 / 3枚） --------------------------------------------
 
 def render_product_pin(site: dict, title: str, category: str, products: list,
-                       variant: int, seed: str) -> Image.Image:
-    """variant 1/2/3 で見た目の異なるピンを描く。使う商品点数も 1/2/3 と変える。"""
+                       layout: int, seed: str) -> Image.Image:
+    """layout 1/2/3 で商品写真を 1/2/3 枚載せる。どれを使うかは variants.layouts_for が決める
+    （まとめ記事は1枚・2種比較は2枚）。3枚のレイアウトは既定では選ばれない。"""
     brand, brand2 = brand_colors(site, seed)
     canvas = vgradient(W, H, brand, brand2)
     draw = ImageDraw.Draw(canvas)
     draw_header(draw, site, category, brand)
-    imgs = load_products(products, {1: 1, 2: 2, 3: 3}[variant])
+    imgs = load_products(products, PHOTOS_PER_LAYOUT[layout])
 
-    if variant == 1:
+    if layout == 1:
         # 現行レイアウト: 上に大きな商品カード、下にタイトル
         card = [60, 250, W - 60, 950]
         paste_card(canvas, draw, card, imgs[0] if imgs else None)
@@ -301,7 +290,7 @@ def render_product_pin(site: dict, title: str, category: str, products: list,
         f, lines, lh = fit_text(draw, title, W - 140, (FOOTER_Y - 40) - top, [58, 52, 46, 40], 4)
         draw_lines(draw, lines, f, lh, 70, top, WHITE)
 
-    elif variant == 2:
+    elif layout == 2:
         # タイトル先出し型: 上部にタイトルを大きく、下に商品2点を横並び
         f, lines, lh = fit_text(draw, title, W - 140, 410, [76, 66, 58, 50], 4)
         draw_lines(draw, lines, f, lh, 70, 250, WHITE)
@@ -316,7 +305,7 @@ def render_product_pin(site: dict, title: str, category: str, products: list,
         for i, box in enumerate([[60, 900, 490, 1250], [510, 900, 940, 1250]], start=1):
             paste_card(canvas, draw, box, imgs[i] if i < len(imgs) else None, pad=30, radius=32)
 
-    draw_footer(draw, variant_tagline(site, variant))
+    draw_footer(draw, pick_tagline(site, seed))
     return canvas
 
 
@@ -464,8 +453,8 @@ def build_site(key: str, site: dict, limit: int | None, use_ledger: bool) -> dic
         seed = str(fm.get("categorySlug") or category or p.stem)
 
         if site["pin_style"] == "product" and products:
-            for v in variants_for(products):
-                run(lambda v=v: render_product_pin(site, variant_title(title, fm, v),
+            for v in layouts_for(products):
+                run(lambda v=v: render_product_pin(site, pin_title(title),
                                                    category, products, v, seed),
                     f"{p.stem}_v{v}.jpg")
         else:
