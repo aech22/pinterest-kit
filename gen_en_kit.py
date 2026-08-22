@@ -471,6 +471,17 @@ def main() -> int:
             print("  " + b)
         return 1
     print("[OK] 1000x1500・20MB以下・同一URLの文面重複なし")
+
+    # 生成したものを Drive へ反映する。手でコピーする工程が残っていたせいで、
+    # 2026-08-12 版の Drive と 8/18 版のローカルが10日ぶんずれていた（温泉記事のピンが
+    # Drive に届いていなかった）。Drive が止まっていれば見送るだけで、生成は失敗させない。
+    if os.environ.get("SKIP_DRIVE_SYNC") != "1":
+        print()
+        try:
+            from sync_drive_en import main as sync_drive
+            sync_drive()
+        except Exception as e:
+            print(f"[警告] Drive への反映に失敗（生成物は {OUT} に残っている）: {e}")
     return 0
 
 

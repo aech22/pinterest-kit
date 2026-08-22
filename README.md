@@ -85,6 +85,7 @@ out/
 | `photo_map_en.py` | **記事 → 使ってよい写真フォルダ**の対応表と、写真8割／C型2割の配分。語学はデータ図版で固定 |
 | `photos_en.py` | 写真の在庫管理と使用済み台帳（`state_en/used_photos.json`）。中身のハッシュで二重使用を防ぐ |
 | `render_en.py` | 英語ピンの描画（A型・C型・写真型） |
+| `sync_drive_en.py` | The Japan Desk の生成物をマウント済み Google Drive へ反映する。`gen_en_kit.py` の最後から自動で走る。**既存ファイルは上書きも削除もせず、新しいぶんだけ足す**（`SKIP_DRIVE_SYNC=1` で抑止・`TJD_DRIVE_DIR` で宛先変更） |
 | `assets_en/thejapandesk/` | 写真の置き場。フォルダを細分化すると記事との対応精度が上がる（README参照） |
 
 ## 設計の要点
