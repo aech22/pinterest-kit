@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 import csv
+import os
 import re
 import sys
 from pathlib import Path
@@ -263,12 +264,17 @@ def write_posts(dir_: Path, rows: list[dict]) -> int:
     （picknavi の「投稿文」フォルダと同じ役割。画像とファイル名が一対一で並ぶ）。"""
     dir_.mkdir(parents=True, exist_ok=True)
     keep = {r["post_file"] for r in rows}
-    for old in dir_.glob("*.txt"):
-        if old.name not in keep:
-            old.unlink()
-            print(f"  [削除] 対象外の旧投稿文: {old.name}")
+    if PRUNE:
+        for old in dir_.glob("*.txt"):
+            if old.name not in keep:
+                old.unlink()
+                print(f"  [削除] 対象外の旧投稿文: {old.name}")
 
+    created = 0
     for r in rows:
+        if (dir_ / r["post_file"]).exists():
+            continue          # 既出の投稿文は触らない（不変方針）
+        created += 1
         body = (
             f'{r["article_title"]}\n'
             f'（{STYLE_LABEL.get(r["style"], r["style"])}）\n\n'
@@ -279,6 +285,7 @@ def write_posts(dir_: Path, rows: list[dict]) -> int:
             f'■ 画像\npins/{r["image_file"]}\n'
         )
         (dir_ / r["post_file"]).write_text(body, encoding="utf-8")
+    print(f"  投稿文: 新規 {created} / 既存据え置き {len(rows) - created}")
     return len(rows)
 
 
@@ -288,6 +295,51 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
+
+
+# 【不変方針 2026-08-22】一度出した投稿文・投稿画像は作り直さない。
+# Pinterest は予約投稿・投稿済みの中身を後から差し替えられないので、手元の素材だけが
+# 新しくなると「配ったものと手元が食い違う」状態になる。だから既存ファイルには触れず、
+# 新しい記事のぶんだけを足す。掃除が必要なときだけ人が KIT_PRUNE=1 を付けて実行する。
+PRUNE = os.environ.get("KIT_PRUNE") == "1"
+
+
+def write_csv_preserving(path: Path, rows: list[dict], key: str = "image_file") -> None:
+    """索引CSVを「既存行は一字も変えず・新規行だけ追記」で書き直す。
+
+    CSVはピンタイトルと説明文（＝投稿文そのもの）を持つため丸ごと上書きすると
+    投稿済みの文面が変わる。逆に凍結すると新しいピンが索引に載らない。
+    そこで image_file をキーに、既に載っている行はそのまま残して新しい行だけ足す。
+    今回生成されなかった過去の行も、予約投稿に組み込み済みかもしれないので末尾に残す。
+    """
+    if not rows:
+        return
+    header = list(rows[0].keys())
+    old: dict[str, dict] = {}
+    if path.exists():
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                k = (r.get(key) or "").strip()
+                if k:
+                    old[k] = r
+
+    merged, seen = [], set()
+    for r in rows:
+        k = (r.get(key) or "").strip()
+        prev = old.get(k)
+        # 既存行は維持。列が増えていたら新しい列だけ新値で埋める。
+        merged.append({c: (prev[c] if prev and c in prev else r.get(c, "")) for c in header})
+        seen.add(k)
+    leftover = [r for k, r in old.items() if k not in seen]
+    merged.extend({c: r.get(c, "") for c in header} for r in leftover)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=header)
+        w.writeheader()
+        w.writerows(merged)
+    added = len(seen - set(old))
+    print(f"  CSV: 既存 {len(old)} 行を据え置き / 新規 {added} 行を追記 / 生成対象外で残した行 {len(leftover)}")
 
 
 def write_calendar(path: Path, arts: list[dict], by_key: dict, per_day: int) -> list[dict]:
@@ -328,21 +380,25 @@ def main() -> int:
                 by_key[(art["slug"], r["slot"])] = r
 
         d = OUT / key
-        write_csv(d / "social_kit.csv", rows)
+        write_csv_preserving(d / "social_kit.csv", rows)
 
-        # 古い版のピン（停止したピラーのぶんを含む）が残っていると誤って投稿しうるので消す
+        # 生成対象から外れた旧ピンの掃除。既定では消さない——予約投稿に組み込み済みの
+        # 素材を消しうるため。停止したピラーのぶんを落としたいときだけ KIT_PRUNE=1 を付ける。
         pin_dir = d / "pins"
         pin_dir.mkdir(parents=True, exist_ok=True)
         keep = {r["image_file"] for r in rows}
-        for old in pin_dir.glob("*.jpg"):
-            if old.name not in keep:
-                old.unlink()
-                print(f"  [削除] 対象外の旧ピン: {old.name}")
+        if PRUNE:
+            for old in pin_dir.glob("*.jpg"):
+                if old.name not in keep:
+                    old.unlink()
+                    print(f"  [削除] 対象外の旧ピン: {old.name}")
 
         for art in arts:
             data = PIN_DATA.get(art["slug"], {})
             for r in rows_for(art, styles[art["slug"]]):
                 stem = r["image_file"][:-4]
+                if (pin_dir / r["image_file"]).exists():
+                    continue      # 既出のピンは作り直さない（不変方針）
                 if r["style"] == "C":
                     make_pin_c(data["c"], pin_dir / r["image_file"])
                 elif r["style"] == "A":
@@ -359,7 +415,7 @@ def main() -> int:
         made = {f.name for f in pin_dir.glob("*.jpg")}
         rows = [r for r in rows if r["image_file"] in made]
         by_key = {k: v for k, v in by_key.items() if v["image_file"] in made}
-        write_csv(d / "social_kit.csv", rows)
+        write_csv_preserving(d / "social_kit.csv", rows)
 
         for w in pool.warnings:
             print("  " + w)
