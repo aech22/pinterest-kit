@@ -26,6 +26,11 @@ ARTICLE_PHOTOS = {
     "2-months-in-japan-long-stay":  ["street-night", "tokyo", "osaka"],
     # --- 実務
     "is-jr-pass-worth-it-2026":     ["train-shinkansen", "station-ic"],
+    "japan-rail-pass-eligibility-guide": ["train-shinkansen", "station-ic"],
+    "jr-pass-baggage-rules":        ["train-shinkansen", "station-ic"],
+    "jr-pass-seat-reservation-guide": ["train-shinkansen", "station-ic"],
+    # 東京と京都の写真は記事の両端なので主題から外れない
+    "tokyo-to-kyoto-cheapest-way":  ["train-shinkansen", "station-ic", "tokyo", "kyoto"],
     "suica-pasmo-icoca-guide":      ["station-ic", "street-night"],
     "best-esim-for-japan":          ["street-night", "tokyo"],
     "japan-packing-list":           ["station-ic", "street-night"],
@@ -41,6 +46,14 @@ ARTICLE_PHOTOS = {
     "japan-autumn-foliage-guide": ["temple-shrine/autumn", "kyoto/autumn", "hakone-fuji/autumn"],
     # 温泉記事は季節が主題ではないので通年の宿・温泉街の写真でよい
     "japan-onsen-towns-worth-the-detour": ["ryokan-onsen", "street-night", "kyushu"],
+    # 入浴マナーの記事は温泉街ではなく宿・湯の写真に限る（街並みへ広げない）
+    "japan-onsen-etiquette":            ["ryokan-onsen"],
+    "onsen-with-tattoos":               ["ryokan-onsen"],
+    "onsen-etiquette-for-women":        ["ryokan-onsen"],
+    "onsen-mixed-bathing-etiquette":    ["ryokan-onsen"],
+    "private-onsen-etiquette-couples":  ["ryokan-onsen"],
+    # 箱根・富士は北アルプスではないので当てない。フォルダを切れば効く
+    "hiking-in-the-japan-alps":         ["japan-alps"],
     # --- 工芸（craft・現在draft）。再開したときにそのまま効くよう先に書いておく
     "arita-vs-mino-vs-hasami":            ["kyushu"],
     "japanese-dinnerware-sets":           ["kyoto"],
@@ -58,6 +71,7 @@ WANTED_FOLDERS = {
     "study-desk": "机・ノート・カフェでの勉強。語学ピラー用（現状はデータ図版で固定中）",
     "airport": "空港ターミナル・搭乗口。航空券記事に対応するフォルダが無い",
     "craft-shop": "工芸品店・市場・土産物。お土産記事と工芸ピラーに対応するフォルダが無い",
+    "japan-alps": "北アルプス・上高地・立山の山と登山道。登山記事に対応するフォルダが無い",
 }
 
 
